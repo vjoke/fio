@@ -539,8 +539,9 @@ static void _add_aws_auth_header(CURL *curl, struct curl_slist *slist, struct ht
 			"Signature=%s",
 		o->s3_keyid, date_short, o->s3_region, signature);
 	} else {
-		snprintf(s, sizeof(s), "Authorization: AWS4-HMAC-SHA256 Credential=%s/%s/%s/s3/aws4_request,"
-			"SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-storage-class,Signature=%s",
+		// FIXME(@xr) add blank to components of the signature
+		snprintf(s, sizeof(s), "Authorization: AWS4-HMAC-SHA256 Credential=%s/%s/%s/s3/aws4_request, "
+			"SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-storage-class, Signature=%s",
 			o->s3_keyid, date_short, o->s3_region, signature);
 	}
 	slist = curl_slist_append(slist, s);
@@ -643,8 +644,10 @@ static enum fio_q_status fio_http_queue(struct thread_data *td,
 
 	fio_ro_check(td, io_u);
 	memset(&_curl_stream, 0, sizeof(_curl_stream));
-	snprintf(object, sizeof(object), "%s_%llu_%llu", td->files[0]->file_name,
-		io_u->offset, io_u->xfer_buflen);
+	// FIXEME(@xr) use the file name as object name
+	snprintf(object, sizeof(object), "%s", td->files[0]->file_name);
+	// snprintf(object, sizeof(object), "%s_%llu_%llu", td->files[0]->file_name,
+	// 	io_u->offset, io_u->xfer_buflen);
 	if (o->https == FIO_HTTPS_OFF)
 		snprintf(url, sizeof(url), "http://%s%s", o->host, object);
 	else
@@ -681,7 +684,8 @@ static enum fio_q_status fio_http_queue(struct thread_data *td,
 		res = curl_easy_perform(http->curl);
 		if (res == CURLE_OK) {
 			curl_easy_getinfo(http->curl, CURLINFO_RESPONSE_CODE, &status);
-			if (status == 200)
+			// FIXME(@xr) take 301 as success
+			if (status == 200 || status == 301)
 				goto out;
 			else if (status == 404) {
 				/* Object doesn't exist. Pretend we read
@@ -749,7 +753,9 @@ static int fio_http_setup(struct thread_data *td)
 	if (o->verbose > 1)
 		curl_easy_setopt(http->curl, CURLOPT_DEBUGFUNCTION, &_curl_trace);
 	curl_easy_setopt(http->curl, CURLOPT_NOPROGRESS, 1L);
-	curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
+	// FIXME(@xr) disable follow location by default
+	curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 0L);
+	// curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(http->curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
 	if (o->https == FIO_HTTPS_INSECURE) {
 		curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYPEER, 0L);
